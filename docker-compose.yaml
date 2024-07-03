@@ -1,0 +1,99 @@
+services:
+
+  ######################################### immich ######################################### 
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:v1.107.2
+    volumes:
+      - ./immich/upload:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+
+      - ./minio-data/YOUR_BUCKET_NAME:/usr/src/app/external/YOUR_BUCKET_NAME:shared
+    environment:
+      DB_HOSTNAME: immich-postgresql
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD}
+      DB_USERNAME: ${IMMICH_DB_USERNAME}
+      DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME}
+      REDIS_HOSTNAME: immich-redis
+      IMMICH_LOG_LEVEL: warn
+    expose:
+      - 3001
+    ports:
+      - 80:3001
+    depends_on:
+      - immich-redis
+      - immich-postgresql
+    restart: always
+
+  immich-machine-learning:
+    # For hardware acceleration, add one of -[armnn, cuda, openvino] to the image tag.
+    # Example tag: ${IMMICH_VERSION:-release}-cuda
+    #image: ghcr.io/immich-app/immich-machine-learning:v1.107.2-openvino
+    image: ghcr.io/immich-app/immich-machine-learning:v1.107.2-cuda
+    # extends: # uncomment this section for hardware acceleration - see https://immich.app/docs/features/ml-hardware-acceleration
+    #   file: hwaccel.ml.yml
+    #   service: cpu # set to one of [armnn, cuda, openvino, openvino-wsl] for accelerated inference - use the `-wsl` version for WSL2 where applicable
+    environment:
+      DB_HOSTNAME: immich-postgresql
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD}
+      DB_USERNAME: ${IMMICH_DB_USERNAME}
+      DB_DATABASE_NAME: ${IMMICH_DB_DATABASE_NAME}
+      REDIS_HOSTNAME: immich-redis
+    volumes:
+      - ./immich/cache:/cache
+    devices:
+      - "/dev/dri:/dev/dri"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: always
+
+  immich-redis:
+    image: redis:6.2-alpine@sha256:328fe6a5822256d065debb36617a8169dbfbd77b797c525288e465f56c1d392b
+    volumes:
+      - ./immich/redis:/data
+    restart: always
+
+  immich-postgresql:
+    image: tensorchord/pgvecto-rs:pg14-v0.2.0@sha256:90724186f0a3517cf6914295b5ab410db9ce23190a2d9d0b9dd6463e3fa298f0
+    environment:
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
+      POSTGRES_USER: ${IMMICH_DB_USERNAME}
+      POSTGRES_DB: ${IMMICH_DB_DATABASE_NAME}
+    volumes:
+      - ./immich/postgresql:/var/lib/postgresql/data
+    restart: always
+
+
+  ######################################### rclone ######################################### 
+  rclone:
+    image: toby1991/rclone-webdav:latest
+    volumes:
+      - ./rclone/webgui:/root/.cache/rclone/webgui
+      - ./rclone/rclone.conf:/root/.config/rclone/rclone.conf:ro
+
+      # your MINIO_DATA shared by rclone
+      - ./minio-data/YOUR_BUCKET_NAME:/mnt:shared
+    # depends_on:
+    #   - minio
+    entrypoint:
+      - /rclone
+      - mount 
+      - minio:YOUR_BUCKET_NAME
+      - /mnt
+      - --read-only
+      - --allow-other
+      - --vfs-cache-mode 
+      - full
+    devices:
+      - /dev/fuse
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    restart: always
+  
+    

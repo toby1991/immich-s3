@@ -1,6 +1,6 @@
 # Immich S3
 
-Immich server with rclone, along with s3, webdav, etc...
+Immich server with rclone, along with s3, webdav, etc... as the External Libraries
 
 ## Usage
 1. Change the `minio` config for yours in the `rclone/rclone.conf`

@@ -1,6 +1,6 @@
 # Immich S3
 
-Immich server with rclone, alone with s3, webdav, etc...
+Immich server with rclone, along with s3, webdav, etc...
 
 ## Usage
 1. Change the `minio` config for yours in the `rclone/rclone.conf`
